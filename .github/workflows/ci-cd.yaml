@@ -22,13 +22,13 @@ jobs:
 
     - name: Build Frontend Image
       run: |
-        cd frontend
+        cd FRONT_END
         docker build -t ${{ secrets.DOCKER_USERNAME }}/frontend:latest .
 
  
     - name: Build Backend Image
       run: |
-        cd backend
+        cd BACK_END
         mvn -B package --file pom.xml
         docker build -t ${{ secrets.DOCKER_USERNAME }}/backend:latest .
 
