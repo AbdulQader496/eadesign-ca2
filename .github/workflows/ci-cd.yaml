@@ -1,0 +1,76 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    # Docker Login
+
+    - name: Login to Docker Hub
+      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+
+
+    - name: Build Frontend Image
+      run: |
+        cd frontend
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/frontend:latest .
+
+ 
+    - name: Build Backend Image
+      run: |
+        cd backend
+        mvn -B package --file pom.xml
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/backend:latest .
+
+    
+    # Trivy Scan
+
+    - name: Run Trivy Scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: '${{ secrets.DOCKER_USERNAME }}/backend:latest'
+
+   
+    # Push Images
+
+    - name: Push Frontend Image
+      run: docker push ${{ secrets.DOCKER_USERNAME }}/frontend:latest
+
+    - name: Push Backend Image
+      run: docker push ${{ secrets.DOCKER_USERNAME }}/backend:latest
+
+
+    # Setup Kubeconfig
+
+    - name: Set up Kubeconfig
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+
+
+    # Setup Terraform
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    # Terraform Deploy
+
+    - name: Terraform Init
+      run: |
+        cd terraform
+        terraform init
+
+    - name: Terraform Apply
+      run: |
+        cd terraform
+        terraform apply -auto-approve
