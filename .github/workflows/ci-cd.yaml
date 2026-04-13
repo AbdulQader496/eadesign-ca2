@@ -10,67 +10,66 @@ jobs:
     steps:
 
     - name: Checkout Code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v4
 
     # Docker Login
-
     - name: Login to Docker Hub
       shell: powershell
       run: |
         $pass="${{ secrets.DOCKER_PASSWORD }}"
         echo $pass | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
+    # Build Frontend
     - name: Build Frontend Image
+      shell: powershell
       run: |
         cd FRONT_END
         docker build -t ${{ secrets.DOCKER_USERNAME }}/frontend:latest .
 
- 
+    # Build Backend
     - name: Build Backend Image
+      shell: powershell
       run: |
         cd BACK_END
         mvn -B package --file pom.xml
         docker build -t ${{ secrets.DOCKER_USERNAME }}/backend:latest .
 
-    
     # Trivy Scan
-
     - name: Run Trivy Scan
+      shell: powershell
       run: |
         docker run --rm aquasec/trivy image ${{ secrets.DOCKER_USERNAME }}/backend:latest
 
-   
     # Push Images
-
     - name: Push Frontend Image
+      shell: powershell
       run: docker push ${{ secrets.DOCKER_USERNAME }}/frontend:latest
 
     - name: Push Backend Image
+      shell: powershell
       run: docker push ${{ secrets.DOCKER_USERNAME }}/backend:latest
 
-        # Setup Kubeconfig
-
+    # Setup Kubeconfig
     - name: Set up Kubeconfig
+      shell: powershell
       run: |
-        mkdir -p $HOME/.kube
-        echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+        New-Item -ItemType Directory -Force -Path $HOME\.kube
+        Set-Content -Path $HOME\.kube\config -Value "${{ secrets.KUBE_CONFIG }}"
 
     # Setup Terraform
-
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v4
 
-    # Terraform Deploy
-
+    # Terraform Init
     - name: Terraform Init
+      shell: powershell
       run: |
         cd terraform
         terraform init
 
+    # Terraform Apply
     - name: Terraform Apply
+      shell: powershell
       run: |
         cd terraform
         terraform apply -auto-approve
-
-
-    
