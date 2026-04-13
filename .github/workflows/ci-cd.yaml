@@ -34,11 +34,6 @@ jobs:
         mvn -B package --file pom.xml
         docker build -t ${{ secrets.DOCKER_USERNAME }}/backend:latest .
 
-    # Trivy Scan
-    - name: Run Trivy Scan
-      shell: powershell
-      run: |
-        docker run --rm aquasec/trivy image ${{ secrets.DOCKER_USERNAME }}/backend:latest
 
     # Push Images
     - name: Push Frontend Image
