@@ -43,6 +43,9 @@ jobs:
     - name: Push Backend Image
       shell: powershell
       run: docker push ${{ secrets.DOCKER_USERNAME }}/backend:latest
+    - name: Run Trivy Scan
+      run: |
+        docker run --rm aquasec/trivy image ${{ secrets.DOCKER_USERNAME }}/backend:latest
 
     # Setup Kubeconfig
     - name: Set up Kubeconfig
