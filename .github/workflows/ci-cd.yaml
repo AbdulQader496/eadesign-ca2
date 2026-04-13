@@ -1,13 +1,11 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch
 
 jobs:
   build-deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
 
@@ -48,6 +46,30 @@ jobs:
 
     - name: Push Backend Image
       run: docker push ${{ secrets.DOCKER_USERNAME }}/backend:latest
+
+        # Setup Kubeconfig
+
+    - name: Set up Kubeconfig
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+
+    # Setup Terraform
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v4
+
+    # Terraform Deploy
+
+    - name: Terraform Init
+      run: |
+        cd terraform
+        terraform init
+
+    - name: Terraform Apply
+      run: |
+        cd terraform
+        terraform apply -auto-approve
 
 
     
