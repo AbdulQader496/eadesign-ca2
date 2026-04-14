@@ -99,11 +99,12 @@ jobs:
       run: |
         cd terraform
         terraform init
-        terraform plan
+        terraform plan -no-color | Tee-Object -FilePath plan.txt
+        Get-Content plan.txt
 
-    # Terraform Apply
-    - name: Terraform Deploy
+    - name: Terraform Apply
       shell: powershell
       run: |
         cd terraform
-        terraform apply -auto-approve
+        terraform apply -auto-approve -no-color | Tee-Object -FilePath apply.txt
+        Get-Content apply.txt
