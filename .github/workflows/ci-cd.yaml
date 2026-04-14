@@ -94,15 +94,18 @@ jobs:
       uses: hashicorp/setup-terraform@v4
 
     # Terraform Plan
+
     - name: Terraform Plan
       shell: powershell
       run: |
         cd terraform
-        & "$env:TERRAFORM_CLI_PATH\terraform.exe" init
-        & "$env:TERRAFORM_CLI_PATH\terraform.exe" plan -no-color
+        terraform version
+        terraform init
+        terraform plan -no-color
 
-    - name: Terraform Apply
+    # Terraform Apply
+    - name: Terraform Deploy
       shell: powershell
       run: |
         cd terraform
-        & "$env:TERRAFORM_CLI_PATH\terraform.exe" apply -auto-approve -no-color
+        terraform apply -auto-approve -no-color
