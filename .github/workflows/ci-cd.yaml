@@ -61,12 +61,6 @@ jobs:
       run: |
         kubectl wait --for=condition=Ready nodes --all --timeout=120s
 
-    # Setup Kubeconfig
-    - name: Set up Kubeconfig
-      shell: powershell
-      run: |
-        New-Item -ItemType Directory -Force -Path $HOME\.kube
-        Set-Content -Path $HOME\.kube\config -Value "${{ secrets.KUBE_CONFIG }}"
 
     # Setup Terraform
     - name: Setup Terraform
