@@ -61,16 +61,33 @@ jobs:
       run: |
         kubectl wait --for=condition=Ready nodes --all --timeout=120s
 
-    # Set KUBECONFIG (correct fix)
-    - name: Set KUBECONFIG
+    # Debug Step (IMPORTANT)
+    - name: Debug Environment
       shell: powershell
       run: |
-        echo "KUBECONFIG=$HOME\.kube\config" >> $env:GITHUB_ENV
+        echo "==== WHOAMI ===="
+        whoami
 
-    # Verify cluster connection
-    - name: Verify Cluster
-      shell: powershell
-      run: kubectl get nodes
+        echo "==== HOME ===="
+        echo $HOME
+
+        echo "==== KUBECONFIG ===="
+        echo $env:KUBECONFIG
+
+        echo "==== FILE EXISTS ===="
+        if (Test-Path "$HOME\.kube\config") { echo "YES EXISTS" } else { echo "NOT FOUND" }
+
+        echo "==== MINIKUBE STATUS ===="
+        minikube status
+
+        echo "==== KUBECTL CONFIG ===="
+        kubectl config get-contexts
+
+        echo "==== CURRENT CONTEXT ===="
+        kubectl config current-context
+
+        echo "==== TRY KUBECTL ===="
+        kubectl get nodes
 
     # Setup Terraform
     - name: Setup Terraform
