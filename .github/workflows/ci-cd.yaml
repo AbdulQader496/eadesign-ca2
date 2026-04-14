@@ -98,13 +98,11 @@ jobs:
       shell: powershell
       run: |
         cd terraform
-        terraform init
-        terraform plan -no-color | Tee-Object -FilePath plan.txt
-        Get-Content plan.txt
+        & "$env:TERRAFORM_CLI_PATH\terraform.exe" init
+        & "$env:TERRAFORM_CLI_PATH\terraform.exe" plan -no-color
 
     - name: Terraform Apply
       shell: powershell
       run: |
         cd terraform
-        terraform apply -auto-approve -no-color | Tee-Object -FilePath apply.txt
-        Get-Content apply.txt
+        & "$env:TERRAFORM_CLI_PATH\terraform.exe" apply -auto-approve -no-color
