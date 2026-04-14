@@ -32,6 +32,7 @@ public class ServiceController {
 
 		 p = new Persistence(env.getProperty("databaseUrl"),
 				env.getProperty("databaseName"), env.getProperty("databaseCollection"));
+		 p.seedRecipes();
 	}
 
 	@GetMapping("/")

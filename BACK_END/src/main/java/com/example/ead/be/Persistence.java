@@ -8,6 +8,7 @@ import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.FindOneAndUpdateOptions;
 import com.mongodb.client.model.ReturnDocument;
 import com.mongodb.client.model.Updates;
+import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.InsertManyResult;
 import org.bson.codecs.configuration.CodecRegistry;
@@ -105,6 +106,19 @@ public class Persistence {
     } catch (MongoException me) {
       System.err.println("Unable to insert any recipes into MongoDB due to an error: " + me);
       return -1;
+    }
+  }
+
+  public void seedRecipes()
+  {
+    ReplaceOptions options = new ReplaceOptions().upsert(true);
+
+    for (Recipe recipe : recipes) {
+      try {
+        collection.replaceOne(Filters.eq("name", recipe.getName()), recipe, options);
+      } catch (MongoException me) {
+        System.err.println("Unable to seed recipe '" + recipe.getName() + "' due to an error: " + me);
+      }
     }
   }
 
