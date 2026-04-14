@@ -31,7 +31,6 @@ jobs:
         mvn -B package --file pom.xml
         docker build -t ${{ secrets.DOCKER_USERNAME }}/backend:latest .
 
-
     # Push Images
     - name: Push Frontend Image
       shell: powershell
@@ -40,7 +39,8 @@ jobs:
     - name: Push Backend Image
       shell: powershell
       run: docker push ${{ secrets.DOCKER_USERNAME }}/backend:latest
-    
+
+    # Trivy Scan
     - name: Run Trivy Scan
       shell: powershell
       run: |
@@ -57,15 +57,16 @@ jobs:
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v4
 
-    # Terraform Init
-    - name: Terraform Init
+    # Terraform Plan
+    - name: Terraform Plan
       shell: powershell
       run: |
         cd terraform
         terraform init
+        terraform plan
 
     # Terraform Apply
-    - name: Terraform Apply
+    - name: Terraform Deploy
       shell: powershell
       run: |
         cd terraform
