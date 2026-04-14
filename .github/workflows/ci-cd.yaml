@@ -60,12 +60,15 @@ jobs:
       shell: powershell
       run: |
         kubectl wait --for=condition=Ready nodes --all --timeout=120s
-        
-    - name: Set kubectl context to Minikube
-      shell: powershell
-      run: kubectl config use-context minikube
 
-    - name: Verify Cluster Connection
+    # Set KUBECONFIG (correct fix)
+    - name: Set KUBECONFIG
+      shell: powershell
+      run: |
+        $env:KUBECONFIG="$HOME\.kube\config"
+
+    # Verify cluster connection
+    - name: Verify Cluster
       shell: powershell
       run: kubectl get nodes
 

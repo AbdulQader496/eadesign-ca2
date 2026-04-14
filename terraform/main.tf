@@ -1,6 +1,4 @@
-provider "kubernetes" {
-  config_path = "~/.kube/config"
-}
+provider "kubernetes" { }
 
 # Namespace
 resource "kubernetes_namespace" "ca2" {
