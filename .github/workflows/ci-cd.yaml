@@ -60,7 +60,14 @@ jobs:
       shell: powershell
       run: |
         kubectl wait --for=condition=Ready nodes --all --timeout=120s
+        
+    - name: Set kubectl context to Minikube
+      shell: powershell
+      run: kubectl config use-context minikube
 
+    - name: Verify Cluster Connection
+      shell: powershell
+      run: kubectl get nodes
 
     # Setup Terraform
     - name: Setup Terraform
