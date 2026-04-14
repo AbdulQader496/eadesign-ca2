@@ -46,6 +46,21 @@ jobs:
       run: |
         docker run --rm aquasec/trivy:0.50.1 image ${{ secrets.DOCKER_USERNAME }}/backend:latest
 
+    # Ensure Minikube Running
+    - name: Ensure Minikube Running
+      shell: powershell
+      run: |
+        minikube status
+        if ($LASTEXITCODE -ne 0) {
+          minikube start
+        }
+
+    # Wait for Kubernetes
+    - name: Wait for Kubernetes
+      shell: powershell
+      run: |
+        kubectl wait --for=condition=Ready nodes --all --timeout=120s
+
     # Setup Kubeconfig
     - name: Set up Kubeconfig
       shell: powershell
