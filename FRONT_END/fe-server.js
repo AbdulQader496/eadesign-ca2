@@ -79,7 +79,7 @@ http.createServer(function (req, res) {
 				const options = {
 				  hostname: global.gConfig.webservice_host,
 				  port: global.gConfig.webservice_port,
-				  path: '/api/recipe',
+				  path: '/recipe',
 				  method: 'POST',
 				  json: true,   // <--Very important!!!
 				};
@@ -122,7 +122,7 @@ http.createServer(function (req, res) {
 				const options = {
 				  hostname: global.gConfig.webservice_host,
 				  port: global.gConfig.webservice_port,
-				  path: '/api/recipes',
+				  path: '/recipes',
 				  method: 'GET',
 				};
 
