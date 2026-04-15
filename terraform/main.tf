@@ -9,6 +9,24 @@ resource "kubernetes_namespace_v1" "ca2" {
   }
 }
 
+# MongoDB Persistent Volume Claim
+resource "kubernetes_persistent_volume_claim_v1" "mongodb_data" {
+  metadata {
+    name      = "mongodb-data"
+    namespace = kubernetes_namespace_v1.ca2.metadata[0].name
+  }
+
+  spec {
+    access_modes = ["ReadWriteOnce"]
+
+    resources {
+      requests = {
+        storage = "5Gi"
+      }
+    }
+  }
+}
+
 # MongoDB Deployment
 resource "kubernetes_deployment" "mongodb" {
   metadata {
@@ -43,10 +61,25 @@ resource "kubernetes_deployment" "mongodb" {
           port {
             container_port = 27017
           }
+
+          volume_mount {
+            name       = "mongodb-data"
+            mount_path = "/data/db"
+          }
+        }
+
+        volume {
+          name = "mongodb-data"
+
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.mongodb_data.metadata[0].name
+          }
         }
       }
     }
   }
+
+  depends_on = [kubernetes_persistent_volume_claim_v1.mongodb_data]
 }
 
 # MongoDB Service

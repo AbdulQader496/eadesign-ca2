@@ -1,0 +1,10 @@
+# Java build output
+BACK_END/target/
+
+# Terraform local state and provider cache
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+
+# Local backup created during repo migration
+.git.local-backup/
