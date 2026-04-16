@@ -299,6 +299,39 @@ resource "kubernetes_service" "backend" {
   }
 }
 
+resource "kubernetes_horizontal_pod_autoscaler_v2" "backend" {
+  metadata {
+    name      = "backend-hpa"
+    namespace = kubernetes_namespace_v1.ca2.metadata[0].name
+  }
+
+  spec {
+    min_replicas = var.backend_hpa_min_replicas
+    max_replicas = var.backend_hpa_max_replicas
+
+    scale_target_ref {
+      api_version = "apps/v1"
+      kind        = "Deployment"
+      name        = kubernetes_deployment.backend.metadata[0].name
+    }
+
+    metric {
+      type = "Resource"
+
+      resource {
+        name = "cpu"
+
+        target {
+          type                = "Utilization"
+          average_utilization = var.backend_hpa_cpu_target
+        }
+      }
+    }
+  }
+
+  depends_on = [kubernetes_deployment.backend]
+}
+
 # Frontend Deployment
 resource "kubernetes_deployment" "frontend" {
   metadata {
@@ -394,6 +427,39 @@ resource "kubernetes_service" "frontend" {
 
     type = "LoadBalancer"
   }
+}
+
+resource "kubernetes_horizontal_pod_autoscaler_v2" "frontend" {
+  metadata {
+    name      = "frontend-hpa"
+    namespace = kubernetes_namespace_v1.ca2.metadata[0].name
+  }
+
+  spec {
+    min_replicas = var.frontend_hpa_min_replicas
+    max_replicas = var.frontend_hpa_max_replicas
+
+    scale_target_ref {
+      api_version = "apps/v1"
+      kind        = "Deployment"
+      name        = kubernetes_deployment.frontend.metadata[0].name
+    }
+
+    metric {
+      type = "Resource"
+
+      resource {
+        name = "cpu"
+
+        target {
+          type                = "Utilization"
+          average_utilization = var.frontend_hpa_cpu_target
+        }
+      }
+    }
+  }
+
+  depends_on = [kubernetes_deployment.frontend]
 }
 
 # Ingress
