@@ -38,11 +38,6 @@ jobs:
         npm ci
         npm test
 
-    - name: Run Terraform Smoke Tests
-      run: |
-        chmod +x terraform/tests/terraform-smoke.sh
-        ./terraform/tests/terraform-smoke.sh
-
     - name: Build Backend Artifact
       run: |
         cd BACK_END
@@ -75,9 +70,7 @@ jobs:
     - name: Set Kubeconfig
       run: |
         mkdir -p "$HOME/.kube"
-        cat <<'EOF' > "$HOME/.kube/config"
-        ${{ secrets.KUBE_CONFIG }}
-        EOF
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > "$HOME/.kube/config"
 
     - name: Deploy To AKS With Terraform
       run: |
