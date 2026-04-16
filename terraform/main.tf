@@ -19,7 +19,7 @@ resource "kubernetes_persistent_volume_claim_v1" "mongodb_data" {
   }
 
   spec {
-    access_modes = ["ReadWriteOnce"]
+    access_modes       = ["ReadWriteOnce"]
     storage_class_name = "managed-csi"
 
     resources {
