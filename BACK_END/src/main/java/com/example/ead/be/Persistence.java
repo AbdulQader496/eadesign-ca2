@@ -45,12 +45,6 @@ public class Persistence {
   private MongoDatabase database = null;
   private MongoCollection<Recipe> collection = null;
 
-  public Persistence()
-  {
-    // User/Password should NOT be embedded in the code. I just do it for simplicity while taking care to give this user the least privilege to avoid security issues!
-    initMongoDBClient("mongodb+srv://ead2024:ead2024.@ead-2023-24.lpclwdo.mongodb.net/", "ead_ca2", "ead_2024");
-  }
-
   public Persistence(String connString, String dbName, String colName)
   {
     initMongoDBClient(connString, dbName, colName);
@@ -157,10 +151,15 @@ public class Persistence {
   }
 
   public static void main(String[] args) {
+    if (args.length != 3) {
+      System.err.println("Usage: Persistence <connectionString> <databaseName> <collectionName>");
+      System.exit(1);
+    }
+
     Logger.getLogger( "org.mongodb.driver" ).setLevel(Level.WARNING);
-    ConnectionString mongoUri = new ConnectionString("mongodb+srv://ead2024:ead2024.@ead-2023-24.lpclwdo.mongodb.net/");
-    String dbName = "ead_ca2";
-    String collectionName = "ead_2024";
+    ConnectionString mongoUri = new ConnectionString(args[0]);
+    String dbName = args[1];
+    String collectionName = args[2];
 
     CodecRegistry pojoCodecRegistry = fromRegistries(MongoClientSettings.getDefaultCodecRegistry(),
             fromProviders(PojoCodecProvider.builder().automatic(true).build()));

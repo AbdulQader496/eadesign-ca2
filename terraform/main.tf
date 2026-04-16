@@ -27,6 +27,22 @@ resource "kubernetes_persistent_volume_claim_v1" "mongodb_data" {
   }
 }
 
+# Backend Secret
+resource "kubernetes_secret_v1" "backend_env" {
+  metadata {
+    name      = "backend-env"
+    namespace = kubernetes_namespace_v1.ca2.metadata[0].name
+  }
+
+  type = "Opaque"
+
+  data = {
+    DATABASE_URL        = "mongodb://mongodb:27017"
+    DATABASE_NAME       = "ead_ca2"
+    DATABASE_COLLECTION = "ead_2024"
+  }
+}
+
 # MongoDB Deployment
 resource "kubernetes_deployment" "mongodb" {
   metadata {
@@ -56,10 +72,44 @@ resource "kubernetes_deployment" "mongodb" {
       spec {
         container {
           name  = "mongodb"
-          image = "mongo:7.0"
+          image = var.mongodb_image
 
           port {
             container_port = 27017
+          }
+
+          liveness_probe {
+            tcp_socket {
+              port = 27017
+            }
+
+            initial_delay_seconds = 30
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 3
+          }
+
+          readiness_probe {
+            tcp_socket {
+              port = 27017
+            }
+
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 3
+          }
+
+          resources {
+            requests = {
+              cpu    = "100m"
+              memory = "256Mi"
+            }
+
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
+            }
           }
 
           volume_mount {
@@ -132,32 +182,86 @@ resource "kubernetes_deployment" "backend" {
       spec {
         container {
           name  = "backend"
-          image = "aq496/eadesign-ca2-backend:v1"
+          image = var.backend_image
 
           env {
-            name  = "DATABASE_URL"
-            value = "mongodb://mongodb:27017"
+            name = "DATABASE_URL"
+
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.backend_env.metadata[0].name
+                key  = "DATABASE_URL"
+              }
+            }
           }
 
           env {
-            name  = "DATABASE_NAME"
-            value = "ead_ca2"
+            name = "DATABASE_NAME"
+
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.backend_env.metadata[0].name
+                key  = "DATABASE_NAME"
+              }
+            }
           }
 
           env {
-            name  = "DATABASE_COLLECTION"
-            value = "ead_2024"
+            name = "DATABASE_COLLECTION"
+
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.backend_env.metadata[0].name
+                key  = "DATABASE_COLLECTION"
+              }
+            }
           }
 
           port {
             container_port = 8080
+          }
+
+          liveness_probe {
+            http_get {
+              path = "/health"
+              port = 8080
+            }
+
+            initial_delay_seconds = 30
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 3
+          }
+
+          readiness_probe {
+            http_get {
+              path = "/health"
+              port = 8080
+            }
+
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 3
+          }
+
+          resources {
+            requests = {
+              cpu    = "100m"
+              memory = "256Mi"
+            }
+
+            limits = {
+              cpu    = "500m"
+              memory = "512Mi"
+            }
           }
         }
       }
     }
   }
 
-  depends_on = [kubernetes_service.mongodb]
+  depends_on = [kubernetes_service.mongodb, kubernetes_secret_v1.backend_env]
 }
 
 # Backend Service
@@ -210,10 +314,46 @@ resource "kubernetes_deployment" "frontend" {
       spec {
         container {
           name  = "frontend"
-          image = "aq496/eadesign-ca2-frontend:v2"
+          image = var.frontend_image
 
           port {
             container_port = 22137
+          }
+
+          liveness_probe {
+            http_get {
+              path = "/"
+              port = 22137
+            }
+
+            initial_delay_seconds = 30
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 3
+          }
+
+          readiness_probe {
+            http_get {
+              path = "/"
+              port = 22137
+            }
+
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 5
+            failure_threshold     = 3
+          }
+
+          resources {
+            requests = {
+              cpu    = "100m"
+              memory = "128Mi"
+            }
+
+            limits = {
+              cpu    = "300m"
+              memory = "256Mi"
+            }
           }
         }
       }

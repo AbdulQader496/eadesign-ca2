@@ -20,25 +20,40 @@ public class ServiceController {
 	//This method is needed because the application.properties is read AFTER all injections have happened.
 	@PostConstruct
 	private void postConstruct() {
+		String databaseUrl = requireProperty("databaseUrl");
+		String databaseName = requireProperty("databaseName");
+		String databaseCollection = requireProperty("databaseCollection");
+
 		System.out.println("******************************************************");
 		System.out.println("******************************************************");
 		System.out.println("******************************************************");
-		System.out.println("env mongoUri:"+env.getProperty("databaseUrl"));
-		System.out.println("env dbName:"+env.getProperty("databaseName"));
-		System.out.println("env dbName:"+env.getProperty("databaseCollection"));
+		System.out.println("env mongoUri:"+databaseUrl);
+		System.out.println("env dbName:"+databaseName);
+		System.out.println("env dbName:"+databaseCollection);
 		System.out.println("******************************************************");
 		System.out.println("******************************************************");
 		System.out.println("******************************************************");
 
-		 p = new Persistence(env.getProperty("databaseUrl"),
-				env.getProperty("databaseName"), env.getProperty("databaseCollection"));
+		 p = new Persistence(databaseUrl, databaseName, databaseCollection);
 		 p.seedRecipes();
+	}
+
+	private String requireProperty(String key) {
+		String value = env.getProperty(key);
+		if (value == null || value.isBlank()) {
+			throw new IllegalStateException("Missing required property: " + key);
+		}
+		return value;
 	}
 
 	@GetMapping("/")
 	public String index() {
-		p.main2();
 		return "Greetings from EAD CA2 Template project 2023-24!";
+	}
+
+	@GetMapping("/health")
+	public String health() {
+		return "OK";
 	}
 
 	@GetMapping("/recipes")
