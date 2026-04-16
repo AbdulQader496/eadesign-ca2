@@ -35,7 +35,6 @@ public class ServiceController {
 		System.out.println("******************************************************");
 
 		 p = new Persistence(databaseUrl, databaseName, databaseCollection);
-		 p.seedRecipes();
 	}
 
 	private String requireProperty(String key) {

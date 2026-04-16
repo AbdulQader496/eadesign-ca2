@@ -11,6 +11,8 @@ resource "kubernetes_namespace_v1" "ca2" {
 
 # MongoDB Persistent Volume Claim
 resource "kubernetes_persistent_volume_claim_v1" "mongodb_data" {
+  wait_until_bound = false
+
   metadata {
     name      = "mongodb-data"
     namespace = kubernetes_namespace_v1.ca2.metadata[0].name
@@ -18,6 +20,7 @@ resource "kubernetes_persistent_volume_claim_v1" "mongodb_data" {
 
   spec {
     access_modes = ["ReadWriteOnce"]
+    storage_class_name = "managed-csi"
 
     resources {
       requests = {
@@ -221,13 +224,24 @@ resource "kubernetes_deployment" "backend" {
             container_port = 8080
           }
 
+          startup_probe {
+            http_get {
+              path = "/health"
+              port = 8080
+            }
+
+            failure_threshold = 30
+            period_seconds    = 10
+            timeout_seconds   = 5
+          }
+
           liveness_probe {
             http_get {
               path = "/health"
               port = 8080
             }
 
-            initial_delay_seconds = 30
+            initial_delay_seconds = 60
             period_seconds        = 10
             timeout_seconds       = 5
             failure_threshold     = 3
@@ -239,7 +253,7 @@ resource "kubernetes_deployment" "backend" {
               port = 8080
             }
 
-            initial_delay_seconds = 10
+            initial_delay_seconds = 30
             period_seconds        = 10
             timeout_seconds       = 5
             failure_threshold     = 3
@@ -378,7 +392,7 @@ resource "kubernetes_service" "frontend" {
       target_port = 22137
     }
 
-    type = "ClusterIP"
+    type = "LoadBalancer"
   }
 }
 

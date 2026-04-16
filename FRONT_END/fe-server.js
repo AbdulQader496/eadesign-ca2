@@ -29,6 +29,30 @@ var submitButton = '<button class="button button1">Submit</button>' +
 				   
 var endBody = '</div></body></html>';				   
 
+function renderRecipes(res, recipes, errorMessage) {
+	res.write('<div id="space"></div>');
+	res.write('<div id="logo">Your Previous Recipes</div>');
+	res.write('<div id="space"></div>');
+
+	if (errorMessage) {
+		res.write('<div id="results">' + errorMessage + '</div>');
+		res.write('<div id="space"></div>');
+		res.end(endBody);
+		return;
+	}
+
+	res.write('<div id="results">Name | Ingredients | PrepTime');
+	res.write('<div id="space"></div>');
+
+	for (let i = 0; i < recipes.length; i++) {
+		res.write(recipes[i].name + ' | ' + recipes[i].ingredients + ' | ');
+		res.write(recipes[i].prepTimeInMinutes + '<br/>');
+	}
+
+	res.write('</div><div id="space"></div>');
+	res.end(endBody);
+}
+
 
 http.createServer(function (req, res) {
 	console.log(req.url)
@@ -100,6 +124,9 @@ http.createServer(function (req, res) {
 					//res.write('<div id="space"></div>');
 					  });
 				});
+				req2.on('error', () => {
+					console.log("Backend save request failed.");
+				});
 				req2.setHeader('content-type', 'application/json');
 				req2.write(JSON.stringify(myJSONObject));	
 				req2.end();
@@ -134,25 +161,16 @@ http.createServer(function (req, res) {
 				  });
 
 				  resp.on('end', () => {
-					//console.log(data);
-
-					res.write('<div id="space"></div>');
-					res.write('<div id="logo">Your Previous Recipes</div>');
-					res.write('<div id="space"></div>');
-					res.write('<div id="results">Name | Ingredients | PrepTime');
-					res.write('<div id="space"></div>');
-					const myArr = JSON.parse(data);
-					
-					i=0;
-					while (i < myArr.length) {
-					  res.write(myArr[i].name + ' | ' + myArr[i].ingredients + ' | ');
-					  res.write(myArr[i].prepTimeInMinutes + '<br/>');							
-					i++;
+					try {
+						const myArr = JSON.parse(data);
+						renderRecipes(res, myArr);
+					} catch (err) {
+						renderRecipes(res, [], 'Recipes are temporarily unavailable.');
 					}
-					res.write('</div><div id="space"></div>');
-					
-					res.end(endBody);
 				  });
+				});
+				req.on('error', () => {
+					renderRecipes(res, [], 'Backend is temporarily unavailable. Please try again shortly.');
 				});
 				req.end();
 
