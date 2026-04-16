@@ -8,44 +8,64 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
     - name: Checkout Code
       uses: actions/checkout@v5
 
-    # Docker Login
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Run Backend Tests
+      run: |
+        cd BACK_END
+        mvn -B test
+
+    - name: Run Frontend Tests
+      run: |
+        cd FRONT_END
+        npm ci
+        npm test
+
+    - name: Run Terraform Smoke Tests
+      run: |
+        chmod +x terraform/tests/terraform-smoke.sh
+        ./terraform/tests/terraform-smoke.sh
+
+    - name: Build Backend Artifact
+      run: |
+        cd BACK_END
+        mvn -B package --file pom.xml
 
     - name: Login to Docker Hub
       run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
-
 
     - name: Build Frontend Image
       run: |
         cd FRONT_END
         docker build -t ${{ secrets.DOCKER_USERNAME }}/frontend:latest .
 
- 
     - name: Build Backend Image
       run: |
         cd BACK_END
-        mvn -B package --file pom.xml
         docker build -t ${{ secrets.DOCKER_USERNAME }}/backend:latest .
-
-    
-    # Trivy Scan
 
     - name: Run Trivy Scan
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: '${{ secrets.DOCKER_USERNAME }}/backend:latest'
 
-   
-    # Push Images
-
     - name: Push Frontend Image
       run: docker push ${{ secrets.DOCKER_USERNAME }}/frontend:latest
 
     - name: Push Backend Image
       run: docker push ${{ secrets.DOCKER_USERNAME }}/backend:latest
-
-
-    
