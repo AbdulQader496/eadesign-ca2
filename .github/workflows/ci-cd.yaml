@@ -76,6 +76,16 @@ jobs:
       run: |
         cd terraform
         terraform init
+        terraform import kubernetes_namespace_v1.ca2 eadesign-ca2 || true
+        terraform import kubernetes_persistent_volume_claim_v1.mongodb_data eadesign-ca2/mongodb-data || true
+        terraform import kubernetes_secret_v1.backend_env eadesign-ca2/backend-env || true
+        terraform import kubernetes_deployment.mongodb eadesign-ca2/mongodb || true
+        terraform import kubernetes_service.mongodb eadesign-ca2/mongodb || true
+        terraform import kubernetes_deployment.backend eadesign-ca2/backend || true
+        terraform import kubernetes_service.backend eadesign-ca2/backend || true
+        terraform import kubernetes_deployment.frontend eadesign-ca2/frontend || true
+        terraform import kubernetes_service.frontend eadesign-ca2/frontend || true
+        terraform import kubernetes_ingress_v1.ca2_ingress eadesign-ca2/ca2-ingress || true
         terraform apply -auto-approve \
           -var="backend_image=${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }}" \
           -var="frontend_image=${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-frontend:${{ env.IMAGE_TAG }}"
