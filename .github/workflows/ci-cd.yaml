@@ -88,6 +88,20 @@ jobs:
         with:
           name: backend-jar
           path: BACK_END/target
+          
+      - name: Run OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: "ca2-project"
+          path: "."
+          format: "HTML"
+          out: "dependency-check-report"
+    
+      - name: Upload Dependency Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: dependency-check-report
 
       - name: Login to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
