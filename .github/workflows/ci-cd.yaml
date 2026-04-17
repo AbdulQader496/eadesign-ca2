@@ -172,23 +172,22 @@ jobs:
         working-directory: BACK_END
         run: docker build -t ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }} .
 
-      - name: Run Trivy Scan For Backend Image
-        uses: aquasecurity/trivy-action@v0.33.1
-        with:
-          image-ref: "${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }}"
-          format: "table"
-          output: "trivy-backend-report.txt"
-          version: "v0.68.1"
-          token-setup-trivy: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | \
+            gpg --dearmor | \
+            sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | \
+            sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
 
-      - name: Run Trivy Scan For Frontend Image
-        uses: aquasecurity/trivy-action@v0.33.1
-        with:
-          image-ref: "${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-frontend:${{ env.IMAGE_TAG }}"
-          format: "table"
-          output: "trivy-frontend-report.txt"
-          version: "v0.68.1"
-          token-setup-trivy: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run Trivy Scan (Both Images)
+        run: |
+          trivy image --format table -o trivy-backend-report.txt ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }}
+          trivy image --format table -o trivy-frontend-report.txt ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-frontend:${{ env.IMAGE_TAG }}
 
       - name: Upload Trivy Reports
         uses: actions/upload-artifact@v4
