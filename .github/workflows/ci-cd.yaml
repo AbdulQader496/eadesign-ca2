@@ -178,6 +178,8 @@ jobs:
           image-ref: "${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }}"
           format: "table"
           output: "trivy-backend-report.txt"
+          version: "v0.68.1"
+          token-setup-trivy: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Trivy Scan For Frontend Image
         uses: aquasecurity/trivy-action@v0.33.1
@@ -185,6 +187,8 @@ jobs:
           image-ref: "${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-frontend:${{ env.IMAGE_TAG }}"
           format: "table"
           output: "trivy-frontend-report.txt"
+          version: "v0.68.1"
+          token-setup-trivy: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Trivy Reports
         uses: actions/upload-artifact@v4
