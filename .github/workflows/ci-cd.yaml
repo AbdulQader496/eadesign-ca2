@@ -140,8 +140,10 @@ jobs:
           terraform import kubernetes_service.mongodb eadesign-ca2/mongodb || true
           terraform import kubernetes_deployment.backend eadesign-ca2/backend || true
           terraform import kubernetes_service.backend eadesign-ca2/backend || true
+          terraform import kubernetes_horizontal_pod_autoscaler_v2.backend eadesign-ca2/backend-hpa || true
           terraform import kubernetes_deployment.frontend eadesign-ca2/frontend || true
           terraform import kubernetes_service.frontend eadesign-ca2/frontend || true
+          terraform import kubernetes_horizontal_pod_autoscaler_v2.frontend eadesign-ca2/frontend-hpa || true
           terraform import kubernetes_ingress_v1.ca2_ingress eadesign-ca2/ca2-ingress || true
           terraform apply -auto-approve \
             -var="backend_image=${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }}" \
