@@ -202,7 +202,7 @@ jobs:
 
       - name: Push Backend Image
         run: docker push ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }}
-
+ 
   deploy:
     name: Deploy To AKS
     runs-on: ubuntu-latest
@@ -240,3 +240,52 @@ jobs:
           terraform apply -auto-approve \
             -var="backend_image=${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }}" \
             -var="frontend_image=${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-frontend:${{ env.IMAGE_TAG }}"
+  monitoring:
+    name: Install Monitoring And Logging
+    runs-on: ubuntu-latest
+    needs:
+      - deploy
+    steps:
+      - name: Set Kubeconfig
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > "$HOME/.kube/config"
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+
+      - name: Add Helm Repos
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo add elastic https://helm.elastic.co
+          helm repo update
+
+      - name: Install Prometheus And Grafana
+        run: |
+          helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+            --namespace eadesign-ca2 \
+            --set grafana.adminPassword=${{ secrets.GRAFANA_PASSWORD }} \
+            --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+            --set grafana.sidecar.datasources.enabled=true
+
+      - name: Install Loki Stack
+        run: |
+          helm upgrade --install loki grafana/loki-stack \
+            --namespace eadesign-ca2 \
+            --set grafana.enabled=false \
+            --set loki.enabled=true \
+            --set promtail.enabled=true
+
+      - name: Verify Monitoring Pods
+        run: kubectl get pods -n eadesign-ca2 -l "release=monitoring"
+
+      - name: Verify Loki Pods
+        run: kubectl get pods -n eadesign-ca2 -l "release=loki"
+
+      - name: Show Access Info
+        run: |
+          echo "===== MONITORING ACCESS ====="
+          echo "Grafana (metrics + logs): kubectl port-forward svc/monitoring-grafana 3000:80 -n eadesign-ca2"
+          echo "Prometheus:               kubectl port-forward svc/monitoring-kube-prometheus-prometheus 9090:9090 -n eadesign-ca2"
+          echo "============================="
