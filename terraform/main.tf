@@ -183,9 +183,22 @@ resource "kubernetes_deployment" "backend" {
       }
 
       spec {
+        volume {
+          name = "backend-tmp"
+
+          empty_dir {}
+        }
+
         container {
           name  = "backend"
           image = var.backend_image
+
+          security_context {
+            run_as_non_root             = true
+            run_as_user                 = 1000
+            read_only_root_filesystem   = true
+            allow_privilege_escalation  = false
+          }
 
           env {
             name = "DATABASE_URL"
@@ -222,6 +235,11 @@ resource "kubernetes_deployment" "backend" {
 
           port {
             container_port = 8080
+          }
+
+          volume_mount {
+            name       = "backend-tmp"
+            mount_path = "/tmp"
           }
 
           startup_probe {
@@ -359,12 +377,30 @@ resource "kubernetes_deployment" "frontend" {
       }
 
       spec {
+        volume {
+          name = "frontend-tmp"
+
+          empty_dir {}
+        }
+
         container {
           name  = "frontend"
           image = var.frontend_image
 
+          security_context {
+            run_as_non_root             = true
+            run_as_user                 = 1000
+            read_only_root_filesystem   = true
+            allow_privilege_escalation  = false
+          }
+
           port {
             container_port = 22137
+          }
+
+          volume_mount {
+            name       = "frontend-tmp"
+            mount_path = "/tmp"
           }
 
           liveness_probe {

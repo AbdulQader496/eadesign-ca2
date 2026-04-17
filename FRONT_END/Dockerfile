@@ -10,4 +10,6 @@ COPY . .
 
 EXPOSE 22137
 
-CMD ["npm", "start"]
+USER 1000:1000
+
+CMD ["node", "fe-server.js"]
