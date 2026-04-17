@@ -172,10 +172,20 @@ jobs:
         working-directory: BACK_END
         run: docker build -t ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }} .
 
-      - name: Run Trivy Scan (Both Images)
-        run: |
-          trivy image --format table -o trivy-backend-report.txt ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }}
-          trivy image --format table -o trivy-frontend-report.txt ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-frontend:${{ env.IMAGE_TAG }}
+      - name: Run Trivy Scan For Backend Image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: "${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }}"
+          format: "table"
+          output: "trivy-backend-report.txt"
+
+      - name: Run Trivy Scan For Frontend Image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: "${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-frontend:${{ env.IMAGE_TAG }}"
+          format: "table"
+          output: "trivy-frontend-report.txt"
+
       - name: Upload Trivy Reports
         uses: actions/upload-artifact@v4
         with:
