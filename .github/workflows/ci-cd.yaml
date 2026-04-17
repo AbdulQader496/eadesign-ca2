@@ -136,6 +136,15 @@ jobs:
         with:
           name: backend-jar
           path: BACK_END/target
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install Frontend Dependencies
+        working-directory: FRONT_END
+        run: npm ci
           
       - name: Run OWASP Dependency-Check
         uses: dependency-check/Dependency-Check_Action@main
@@ -144,6 +153,7 @@ jobs:
           path: "."
           format: "HTML"
           out: "dependency-check-report"
+          args: "--disableCentral"
     
       - name: Upload Dependency Report
         uses: actions/upload-artifact@v4
