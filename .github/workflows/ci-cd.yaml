@@ -331,7 +331,60 @@ jobs:
             --namespace eadesign-ca2 \
             --set grafana.enabled=false \
             --set loki.enabled=true \
-            --set promtail.enabled=true
+            --set promtail.enabled=true \
+            --set test_pod.enabled=false
+
+      - name: Normalize Grafana Datasources
+        run: |
+          for resource in $(kubectl get configmap -n eadesign-ca2 -l grafana_datasource -o name); do
+            if [ "$resource" != "configmap/monitoring-kube-prometheus-grafana-datasource" ]; then
+              kubectl delete "$resource" -n eadesign-ca2
+            fi
+          done
+
+          for resource in $(kubectl get secret -n eadesign-ca2 -l grafana_datasource -o name); do
+            kubectl delete "$resource" -n eadesign-ca2
+          done
+
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: monitoring-kube-prometheus-grafana-datasource
+            namespace: eadesign-ca2
+            labels:
+              grafana_datasource: "1"
+              app: kube-prometheus-stack-grafana
+              app.kubernetes.io/component: grafana
+              app.kubernetes.io/instance: monitoring
+              app.kubernetes.io/name: kube-prometheus-stack-grafana
+          data:
+            datasource.yaml: |-
+              apiVersion: 1
+              datasources:
+                - name: Prometheus
+                  type: prometheus
+                  uid: prometheus
+                  access: proxy
+                  url: http://monitoring-kube-prometheus-prometheus.eadesign-ca2:9090/
+                  isDefault: true
+                  jsonData:
+                    httpMethod: POST
+                    timeInterval: 30s
+                - name: Loki
+                  type: loki
+                  uid: loki
+                  access: proxy
+                  url: http://loki.eadesign-ca2:3100
+                  isDefault: false
+                  jsonData:
+                    maxLines: 1000
+          EOF
+
+      - name: Restart Grafana
+        run: |
+          kubectl rollout restart deployment/monitoring-grafana -n eadesign-ca2
+          kubectl rollout status deployment/monitoring-grafana -n eadesign-ca2 --timeout=180s
 
       - name: Apply PodMonitors
         run: |

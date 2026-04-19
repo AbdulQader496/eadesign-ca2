@@ -136,7 +136,8 @@ The Terraform setup defines Kubernetes resources for:
 
 Deployment protections included in Terraform:
 
-- rolling update strategy for frontend, backend, and MongoDB
+- rolling update strategy for frontend and backend
+- recreate strategy for MongoDB so the single PVC is not mounted by two pods at once
 - revision history retention to support deployment rollback
 - daily MongoDB backups with timestamped folders
 - cleanup of old backup folders to avoid filling the backup volume
@@ -172,6 +173,7 @@ Application monitoring is designed for `kube-prometheus-stack`:
 - backend metrics are exposed at `/actuator/prometheus`
 - frontend metrics are exposed at `/metrics`
 - the monitoring workflow installs Prometheus, Grafana, Loki, and promtail
+- Grafana datasource provisioning is normalized so Prometheus is the only default datasource and Loki is added as a non-default datasource
 - PodMonitors are applied so Prometheus can discover both application pods
 
 Grafana and Prometheus can be accessed with `kubectl port-forward` after the monitoring job completes.

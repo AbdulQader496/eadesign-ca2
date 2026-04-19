@@ -81,12 +81,7 @@ resource "kubernetes_deployment" "mongodb" {
     replicas = 1
 
     strategy {
-      type = "RollingUpdate"
-
-      rolling_update {
-        max_surge       = 1
-        max_unavailable = 0
-      }
+      type = "Recreate"
     }
 
     revision_history_limit = 5
