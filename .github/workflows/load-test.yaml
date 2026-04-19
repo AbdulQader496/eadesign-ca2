@@ -13,10 +13,10 @@ on:
         required: true
         default: "20"
         type: string
-      duration:
-        description: Test duration
+      iterations:
+        description: Total iterations across all virtual users
         required: true
-        default: 1m
+        default: "6000"
         type: string
 
 jobs:
@@ -37,7 +37,7 @@ jobs:
         run: |
           k6 run \
             --vus ${{ github.event.inputs.vus }} \
-            --duration ${{ github.event.inputs.duration }} \
+            --iterations ${{ github.event.inputs.iterations }} \
             --summary-export k6-summary.json \
             load-tests/website.js
 

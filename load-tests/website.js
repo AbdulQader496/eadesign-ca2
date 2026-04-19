@@ -1,7 +1,9 @@
 import http from 'k6/http';
-import { check, sleep } from 'k6';
+import { check } from 'k6';
 
 export const options = {
+  vus: 20,
+  iterations: 60000,
   thresholds: {
     http_req_failed: ['rate<0.05'],
     http_req_duration: ['p(95)<2000'],
@@ -20,6 +22,4 @@ export default function () {
   check(apiResponse, {
     'recipes api returns 200': (response) => response.status === 200,
   });
-
-  sleep(1);
 }
