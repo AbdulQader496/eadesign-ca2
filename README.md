@@ -147,6 +147,7 @@ Deployment protections included in Terraform:
 GitHub Actions workflow:
 
 - `.github/workflows/ci-cd.yaml`
+- `.github/workflows/load-test.yaml`
 
 The current workflow is triggered manually with `workflow_dispatch`.
 
@@ -165,6 +166,8 @@ It performs:
 - automatic `kubectl rollout undo` if a deployment rollout fails
 - Helm-based installation of Prometheus, Grafana, and Loki
 - PodMonitor creation for backend and frontend metrics scraping
+
+The separate load test workflow is triggered manually and runs a `k6` script from `load-tests/website.js` against the supplied target URL.
 
 ## Monitoring
 
