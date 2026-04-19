@@ -1,6 +1,9 @@
 # Java build output
 BACK_END/target/
 
+# Frontend dependencies
+FRONT_END/node_modules/
+
 # Terraform local state and provider cache
 terraform/.terraform/
 terraform/*.tfstate

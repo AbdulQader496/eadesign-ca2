@@ -2,11 +2,19 @@ var http = require('http');
 var url = require('url');
 const { parse } = require('querystring');
 var fs = require('fs');
+const client = require('prom-client');
 
 //Loading the config fileContents
 const config = require('./config/config.json');
 const defaultConfig = config.development;
 global.gConfig = defaultConfig;
+
+client.collectDefaultMetrics();
+const frontendRequestCounter = new client.Counter({
+	name: 'frontend_http_requests_total',
+	help: 'Total number of HTTP requests handled by the frontend',
+	labelNames: ['method', 'route', 'status_code']
+});
 
 //Generating some constants to be used to create the common HTML elements.
 var header = '<!doctype html><html>'+
@@ -56,17 +64,35 @@ function renderRecipes(res, recipes, errorMessage) {
 
 http.createServer(function (req, res) {
 	console.log(req.url)
- 
+
+	if (req.url === '/metrics') {
+		res.writeHead(200, { 'Content-Type': client.register.contentType });
+		client.register.metrics()
+			.then((metrics) => {
+				frontendRequestCounter.inc({ method: req.method, route: '/metrics', status_code: '200' });
+				res.end(metrics);
+			})
+			.catch(() => {
+				frontendRequestCounter.inc({ method: req.method, route: '/metrics', status_code: '500' });
+				res.statusCode = 500;
+				res.end('Unable to collect metrics');
+			});
+		return;
+	}
+
 	//This validation needed to avoid duplicated (i.e., twice!) get / calls (due to the favicon.ico)
 	if (req.url === '/favicon.ico') {
 		 res.writeHead(200, {'Content-Type': 'image/x-icon'} );
+		 frontendRequestCounter.inc({ method: req.method, route: '/favicon.ico', status_code: '200' });
 		 res.end();
 		 console.log('favicon requested');
-    }
+	    }
 	else
 	{
+		const routeLabel = req.method === 'POST' ? '/submit' : '/';
 		res.writeHead(200, {'Content-Type': 'text/html'});
-
+		frontendRequestCounter.inc({ method: req.method, route: routeLabel, status_code: '200' });
+	
 		var fileContents = fs.readFileSync('./public/default.css', {encoding: 'utf8'});
 		res.write(header);
 		res.write('<style>' + fileContents + '</style>');

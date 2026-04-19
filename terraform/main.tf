@@ -30,6 +30,27 @@ resource "kubernetes_persistent_volume_claim_v1" "mongodb_data" {
   }
 }
 
+# MongoDB Backup Persistent Volume Claim
+resource "kubernetes_persistent_volume_claim_v1" "mongodb_backup" {
+  wait_until_bound = false
+
+  metadata {
+    name      = "mongodb-backup"
+    namespace = kubernetes_namespace_v1.ca2.metadata[0].name
+  }
+
+  spec {
+    access_modes       = ["ReadWriteOnce"]
+    storage_class_name = "managed-csi"
+
+    resources {
+      requests = {
+        storage = "5Gi"
+      }
+    }
+  }
+}
+
 # Backend Secret
 resource "kubernetes_secret_v1" "backend_env" {
   metadata {
@@ -59,6 +80,17 @@ resource "kubernetes_deployment" "mongodb" {
   spec {
     replicas = 1
 
+    strategy {
+      type = "RollingUpdate"
+
+      rolling_update {
+        max_surge       = 1
+        max_unavailable = 0
+      }
+    }
+
+    revision_history_limit = 5
+
     selector {
       match_labels = {
         app = "mongodb"
@@ -76,6 +108,11 @@ resource "kubernetes_deployment" "mongodb" {
         container {
           name  = "mongodb"
           image = var.mongodb_image
+
+          security_context {
+            run_as_non_root            = false
+            allow_privilege_escalation = false
+          }
 
           port {
             container_port = 27017
@@ -156,6 +193,93 @@ resource "kubernetes_service" "mongodb" {
   }
 }
 
+resource "kubernetes_cron_job_v1" "mongodb_backup" {
+  metadata {
+    name      = "mongodb-backup"
+    namespace = kubernetes_namespace_v1.ca2.metadata[0].name
+  }
+
+  spec {
+    schedule                      = "0 2 * * *"
+    failed_jobs_history_limit     = 3
+    successful_jobs_history_limit = 3
+
+    job_template {
+      metadata {}
+
+      spec {
+        template {
+          metadata {}
+
+          spec {
+            container {
+              name  = "mongodb-backup"
+              image = var.mongodb_image
+              command = [
+                "/bin/sh",
+                "-c",
+                "backup_dir=/backup/$(date +%Y%m%d-%H%M%S) && mkdir -p \"$backup_dir\" && mongodump --host mongodb --out \"$backup_dir\" && find /backup -mindepth 1 -maxdepth 1 -type d -mtime +7 -exec rm -rf {} + && echo 'Backup completed successfully'",
+              ]
+
+              volume_mount {
+                name       = "backup-storage"
+                mount_path = "/backup"
+              }
+            }
+
+            volume {
+              name = "backup-storage"
+
+              persistent_volume_claim {
+                claim_name = kubernetes_persistent_volume_claim_v1.mongodb_backup.metadata[0].name
+              }
+            }
+
+            restart_policy = "OnFailure"
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    kubernetes_service.mongodb,
+    kubernetes_persistent_volume_claim_v1.mongodb_backup,
+  ]
+}
+
+resource "kubernetes_network_policy" "mongodb_policy" {
+  metadata {
+    name      = "mongodb-allow-backend-only"
+    namespace = kubernetes_namespace_v1.ca2.metadata[0].name
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        app = "mongodb"
+      }
+    }
+
+    policy_types = ["Ingress"]
+
+    ingress {
+      from {
+        pod_selector {
+          match_labels = {
+            app = "backend"
+          }
+        }
+      }
+
+      ports {
+        port     = "27017"
+        protocol = "TCP"
+      }
+    }
+  }
+}
+
 # Backend Deployment
 resource "kubernetes_deployment" "backend" {
   metadata {
@@ -169,6 +293,17 @@ resource "kubernetes_deployment" "backend" {
   spec {
     replicas = 1
 
+    strategy {
+      type = "RollingUpdate"
+
+      rolling_update {
+        max_surge       = 1
+        max_unavailable = 0
+      }
+    }
+
+    revision_history_limit = 5
+
     selector {
       match_labels = {
         app = "backend"
@@ -179,6 +314,12 @@ resource "kubernetes_deployment" "backend" {
       metadata {
         labels = {
           app = "backend"
+        }
+
+        annotations = {
+          "prometheus.io/scrape" = "true"
+          "prometheus.io/port"   = "8080"
+          "prometheus.io/path"   = "/actuator/prometheus"
         }
       }
 
@@ -194,10 +335,10 @@ resource "kubernetes_deployment" "backend" {
           image = var.backend_image
 
           security_context {
-            run_as_non_root             = true
-            run_as_user                 = 1000
-            read_only_root_filesystem   = true
-            allow_privilege_escalation  = false
+            run_as_non_root            = true
+            run_as_user                = 1000
+            read_only_root_filesystem  = true
+            allow_privilege_escalation = false
           }
 
           env {
@@ -301,6 +442,12 @@ resource "kubernetes_service" "backend" {
   metadata {
     name      = "backend"
     namespace = kubernetes_namespace_v1.ca2.metadata[0].name
+
+    annotations = {
+      "prometheus.io/scrape" = "true"
+      "prometheus.io/port"   = "8080"
+      "prometheus.io/path"   = "/actuator/prometheus"
+    }
   }
 
   spec {
@@ -314,6 +461,112 @@ resource "kubernetes_service" "backend" {
     }
 
     type = "ClusterIP"
+  }
+}
+
+resource "kubernetes_network_policy" "backend_policy" {
+  metadata {
+    name      = "backend-allow-frontend-monitoring-and-ingress"
+    namespace = kubernetes_namespace_v1.ca2.metadata[0].name
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        app = "backend"
+      }
+    }
+
+    policy_types = ["Ingress"]
+
+    ingress {
+      from {
+        pod_selector {
+          match_labels = {
+            app = "frontend"
+          }
+        }
+      }
+
+      from {
+        namespace_selector {
+          match_labels = {
+            "kubernetes.io/metadata.name" = "ingress-nginx"
+          }
+        }
+      }
+
+      from {
+        pod_selector {
+          match_labels = {
+            "app.kubernetes.io/name" = "prometheus"
+          }
+        }
+      }
+
+      ports {
+        port     = "8080"
+        protocol = "TCP"
+      }
+    }
+  }
+}
+
+resource "kubernetes_network_policy" "backend_egress_policy" {
+  metadata {
+    name      = "backend-egress-db-and-dns"
+    namespace = kubernetes_namespace_v1.ca2.metadata[0].name
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        app = "backend"
+      }
+    }
+
+    policy_types = ["Egress"]
+
+    egress {
+      to {
+        pod_selector {
+          match_labels = {
+            app = "mongodb"
+          }
+        }
+      }
+
+      ports {
+        port     = "27017"
+        protocol = "TCP"
+      }
+    }
+
+    egress {
+      to {
+        namespace_selector {
+          match_labels = {
+            "kubernetes.io/metadata.name" = "kube-system"
+          }
+        }
+
+        pod_selector {
+          match_labels = {
+            "k8s-app" = "kube-dns"
+          }
+        }
+      }
+
+      ports {
+        port     = "53"
+        protocol = "UDP"
+      }
+
+      ports {
+        port     = "53"
+        protocol = "TCP"
+      }
+    }
   }
 }
 
@@ -363,6 +616,17 @@ resource "kubernetes_deployment" "frontend" {
   spec {
     replicas = 1
 
+    strategy {
+      type = "RollingUpdate"
+
+      rolling_update {
+        max_surge       = 1
+        max_unavailable = 0
+      }
+    }
+
+    revision_history_limit = 5
+
     selector {
       match_labels = {
         app = "frontend"
@@ -373,6 +637,12 @@ resource "kubernetes_deployment" "frontend" {
       metadata {
         labels = {
           app = "frontend"
+        }
+
+        annotations = {
+          "prometheus.io/scrape" = "true"
+          "prometheus.io/port"   = "22137"
+          "prometheus.io/path"   = "/metrics"
         }
       }
 
@@ -388,10 +658,10 @@ resource "kubernetes_deployment" "frontend" {
           image = var.frontend_image
 
           security_context {
-            run_as_non_root             = true
-            run_as_user                 = 1000
-            read_only_root_filesystem   = true
-            allow_privilege_escalation  = false
+            run_as_non_root            = true
+            run_as_user                = 1000
+            read_only_root_filesystem  = true
+            allow_privilege_escalation = false
           }
 
           port {
@@ -449,6 +719,12 @@ resource "kubernetes_service" "frontend" {
   metadata {
     name      = "frontend"
     namespace = kubernetes_namespace_v1.ca2.metadata[0].name
+
+    annotations = {
+      "prometheus.io/scrape" = "true"
+      "prometheus.io/port"   = "22137"
+      "prometheus.io/path"   = "/metrics"
+    }
   }
 
   spec {
@@ -461,7 +737,105 @@ resource "kubernetes_service" "frontend" {
       target_port = 22137
     }
 
-    type = "LoadBalancer"
+    type = "ClusterIP"
+  }
+}
+
+resource "kubernetes_network_policy" "frontend_policy" {
+  metadata {
+    name      = "frontend-allow-ingress-and-monitoring"
+    namespace = kubernetes_namespace_v1.ca2.metadata[0].name
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        app = "frontend"
+      }
+    }
+
+    policy_types = ["Ingress"]
+
+    ingress {
+      from {
+        namespace_selector {
+          match_labels = {
+            "kubernetes.io/metadata.name" = "ingress-nginx"
+          }
+        }
+      }
+
+      from {
+        pod_selector {
+          match_labels = {
+            "app.kubernetes.io/name" = "prometheus"
+          }
+        }
+      }
+
+      ports {
+        port     = "22137"
+        protocol = "TCP"
+      }
+    }
+  }
+}
+
+resource "kubernetes_network_policy" "frontend_egress_policy" {
+  metadata {
+    name      = "frontend-egress-backend-and-dns"
+    namespace = kubernetes_namespace_v1.ca2.metadata[0].name
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        app = "frontend"
+      }
+    }
+
+    policy_types = ["Egress"]
+
+    egress {
+      to {
+        pod_selector {
+          match_labels = {
+            app = "backend"
+          }
+        }
+      }
+
+      ports {
+        port     = "8080"
+        protocol = "TCP"
+      }
+    }
+
+    egress {
+      to {
+        namespace_selector {
+          match_labels = {
+            "kubernetes.io/metadata.name" = "kube-system"
+          }
+        }
+
+        pod_selector {
+          match_labels = {
+            "k8s-app" = "kube-dns"
+          }
+        }
+      }
+
+      ports {
+        port     = "53"
+        protocol = "UDP"
+      }
+
+      ports {
+        port     = "53"
+        protocol = "TCP"
+      }
+    }
   }
 }
 
