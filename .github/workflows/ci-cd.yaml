@@ -272,9 +272,24 @@ jobs:
           TF_VAR_aks_kubernetes_version: ${{ vars.AKS_KUBERNETES_VERSION || '' }}
         run: |
           terraform init
+          : > generated-imports.tf
           if az group exists --name "$TF_VAR_resource_group_name" | grep -q true; then
-            echo "Importing existing resource group into Terraform state..."
-            terraform import -no-color azurerm_resource_group.ca2 "/subscriptions/$TF_VAR_azure_subscription_id/resourceGroups/$TF_VAR_resource_group_name" || true
+            cat <<EOF >> generated-imports.tf
+import {
+  to = azurerm_resource_group.ca2
+  id = "/subscriptions/$TF_VAR_azure_subscription_id/resourceGroups/$TF_VAR_resource_group_name"
+}
+
+EOF
+          fi
+          if az aks show --resource-group "$TF_VAR_resource_group_name" --name "$TF_VAR_aks_cluster_name" >/dev/null 2>&1; then
+            cat <<EOF >> generated-imports.tf
+import {
+  to = azurerm_kubernetes_cluster.ca2
+  id = "/subscriptions/$TF_VAR_azure_subscription_id/resourceGroups/$TF_VAR_resource_group_name/providers/Microsoft.ContainerService/managedClusters/$TF_VAR_aks_cluster_name"
+}
+
+EOF
           fi
           terraform apply -auto-approve
 
@@ -363,15 +378,15 @@ jobs:
           fi
 
       - name: Check All Pods
-        if: always()
+        if: success()
         run: kubectl get pods -n eadesign-ca2 -o wide
 
       - name: Backend Logs
-        if: always()
+        if: success()
         run: kubectl logs -l app=backend -n eadesign-ca2 --tail=30
 
       - name: Frontend Logs
-        if: always()
+        if: success()
         run: kubectl logs -l app=frontend -n eadesign-ca2 --tail=30
 
   monitoring:
