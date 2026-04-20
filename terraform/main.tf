@@ -6,10 +6,6 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0"
     }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 3.0"
-    }
   }
 }
 
@@ -57,19 +53,4 @@ resource "azurerm_kubernetes_cluster" "ca2" {
   tags = {
     project = "eadesign-ca2"
   }
-}
-
-provider "kubernetes" {
-  host                   = azurerm_kubernetes_cluster.ca2.kube_config[0].host
-  client_certificate     = base64decode(azurerm_kubernetes_cluster.ca2.kube_config[0].client_certificate)
-  client_key             = base64decode(azurerm_kubernetes_cluster.ca2.kube_config[0].client_key)
-  cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.ca2.kube_config[0].cluster_ca_certificate)
-}
-
-resource "kubernetes_namespace_v1" "ca2" {
-  metadata {
-    name = "eadesign-ca2"
-  }
-
-  depends_on = [azurerm_kubernetes_cluster.ca2]
 }

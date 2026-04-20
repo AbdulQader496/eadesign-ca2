@@ -1,5 +1,5 @@
 output "namespace" {
-  value = kubernetes_namespace_v1.ca2.metadata[0].name
+  value = "eadesign-ca2"
 }
 
 output "resource_group_name" {

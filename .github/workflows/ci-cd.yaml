@@ -284,6 +284,9 @@ jobs:
           resource-group: ${{ vars.AZURE_RESOURCE_GROUP || 'eadesign-ca2-rg' }}
           cluster-name: ${{ vars.AKS_CLUSTER_NAME || 'eadesign-ca2-aks' }}
 
+      - name: Ensure Namespace Exists
+        run: kubectl create namespace eadesign-ca2 --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Render Kubernetes Manifests
         env:
           BACKEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }}
