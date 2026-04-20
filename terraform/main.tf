@@ -18,6 +18,12 @@ provider "azurerm" {
   subscription_id = var.azure_subscription_id
 }
 
+locals {
+  aks_kubernetes_version = (
+    var.aks_kubernetes_version == null || trimspace(var.aks_kubernetes_version) == ""
+  ) ? null : var.aks_kubernetes_version
+}
+
 resource "azurerm_resource_group" "ca2" {
   name     = var.resource_group_name
   location = var.azure_location
@@ -28,7 +34,7 @@ resource "azurerm_kubernetes_cluster" "ca2" {
   location            = azurerm_resource_group.ca2.location
   resource_group_name = azurerm_resource_group.ca2.name
   dns_prefix          = var.aks_dns_prefix
-  kubernetes_version  = var.aks_kubernetes_version
+  kubernetes_version  = local.aks_kubernetes_version
   sku_tier            = "Free"
 
   default_node_pool {
