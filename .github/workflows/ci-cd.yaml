@@ -301,29 +301,70 @@ jobs:
 
       - name: Verify MongoDB Rollout
         run: |
-          kubectl rollout status deployment/mongodb -n eadesign-ca2 --timeout=120s || \
-          (echo "MongoDB rollout failed, rolling back..." && \
-          kubectl rollout undo deployment/mongodb -n eadesign-ca2 && exit 1)
+          if ! kubectl rollout status deployment/mongodb -n eadesign-ca2 --timeout=120s; then
+            echo "MongoDB rollout failed. Collecting diagnostics..."
+            kubectl get pods -n eadesign-ca2 -o wide || true
+            kubectl describe deployment/mongodb -n eadesign-ca2 || true
+            kubectl describe pods -l app=mongodb -n eadesign-ca2 || true
+            kubectl logs -l app=mongodb -n eadesign-ca2 --tail=100 || true
+            kubectl logs -l app=mongodb -n eadesign-ca2 --previous --tail=100 || true
+            if kubectl rollout history deployment/mongodb -n eadesign-ca2 | awk 'NR>2 {found=1} END {exit found ? 0 : 1}'; then
+              echo "Rolling back MongoDB deployment..."
+              kubectl rollout undo deployment/mongodb -n eadesign-ca2 || true
+            else
+              echo "Skipping rollback for MongoDB: no previous rollout revision exists."
+            fi
+            exit 1
+          fi
 
       - name: Verify Backend Rollout
         run: |
-          kubectl rollout status deployment/backend -n eadesign-ca2 --timeout=120s || \
-          (echo "Backend rollout failed, rolling back..." && \
-          kubectl rollout undo deployment/backend -n eadesign-ca2 && exit 1)
+          if ! kubectl rollout status deployment/backend -n eadesign-ca2 --timeout=120s; then
+            echo "Backend rollout failed. Collecting diagnostics..."
+            kubectl get pods -n eadesign-ca2 -o wide || true
+            kubectl describe deployment/backend -n eadesign-ca2 || true
+            kubectl describe pods -l app=backend -n eadesign-ca2 || true
+            kubectl logs -l app=backend -n eadesign-ca2 --tail=100 || true
+            kubectl logs -l app=backend -n eadesign-ca2 --previous --tail=100 || true
+            kubectl get events -n eadesign-ca2 --sort-by=.lastTimestamp | tail -n 30 || true
+            if kubectl rollout history deployment/backend -n eadesign-ca2 | awk 'NR>2 {found=1} END {exit found ? 0 : 1}'; then
+              echo "Rolling back backend deployment..."
+              kubectl rollout undo deployment/backend -n eadesign-ca2 || true
+            else
+              echo "Skipping rollback for backend: no previous rollout revision exists."
+            fi
+            exit 1
+          fi
 
       - name: Verify Frontend Rollout
         run: |
-          kubectl rollout status deployment/frontend -n eadesign-ca2 --timeout=120s || \
-          (echo "Frontend rollout failed, rolling back..." && \
-          kubectl rollout undo deployment/frontend -n eadesign-ca2 && exit 1)
+          if ! kubectl rollout status deployment/frontend -n eadesign-ca2 --timeout=120s; then
+            echo "Frontend rollout failed. Collecting diagnostics..."
+            kubectl get pods -n eadesign-ca2 -o wide || true
+            kubectl describe deployment/frontend -n eadesign-ca2 || true
+            kubectl describe pods -l app=frontend -n eadesign-ca2 || true
+            kubectl logs -l app=frontend -n eadesign-ca2 --tail=100 || true
+            kubectl logs -l app=frontend -n eadesign-ca2 --previous --tail=100 || true
+            kubectl get events -n eadesign-ca2 --sort-by=.lastTimestamp | tail -n 30 || true
+            if kubectl rollout history deployment/frontend -n eadesign-ca2 | awk 'NR>2 {found=1} END {exit found ? 0 : 1}'; then
+              echo "Rolling back frontend deployment..."
+              kubectl rollout undo deployment/frontend -n eadesign-ca2 || true
+            else
+              echo "Skipping rollback for frontend: no previous rollout revision exists."
+            fi
+            exit 1
+          fi
 
       - name: Check All Pods
+        if: always()
         run: kubectl get pods -n eadesign-ca2 -o wide
 
       - name: Backend Logs
+        if: always()
         run: kubectl logs -l app=backend -n eadesign-ca2 --tail=30
 
       - name: Frontend Logs
+        if: always()
         run: kubectl logs -l app=frontend -n eadesign-ca2 --tail=30
 
   monitoring:
