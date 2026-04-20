@@ -247,43 +247,57 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v5
 
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Set Kubeconfig
-        run: |
-          mkdir -p "$HOME/.kube"
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > "$HOME/.kube/config"
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
 
       - name: Deploy To AKS With Terraform
         working-directory: terraform
+        env:
+          TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_resource_group_name: ${{ vars.AZURE_RESOURCE_GROUP || 'eadesign-ca2-rg' }}
+          TF_VAR_aks_cluster_name: ${{ vars.AKS_CLUSTER_NAME || 'eadesign-ca2-aks' }}
+          TF_VAR_aks_dns_prefix: ${{ vars.AKS_DNS_PREFIX || 'eadesign-ca2' }}
+          TF_VAR_azure_location: ${{ vars.AZURE_LOCATION || 'uksouth' }}
+          TF_VAR_aks_node_count: ${{ vars.AKS_NODE_COUNT || '2' }}
+          TF_VAR_aks_node_vm_size: ${{ vars.AKS_NODE_VM_SIZE || 'Standard_B2s' }}
+          TF_VAR_aks_os_disk_size_gb: ${{ vars.AKS_OS_DISK_SIZE_GB || '64' }}
+          TF_VAR_aks_kubernetes_version: ${{ vars.AKS_KUBERNETES_VERSION || '' }}
         run: |
           terraform init
-          terraform import kubernetes_namespace_v1.ca2 eadesign-ca2 || true
-          terraform import kubernetes_persistent_volume_claim_v1.mongodb_data eadesign-ca2/mongodb-data || true
-          terraform import kubernetes_persistent_volume_claim_v1.mongodb_backup eadesign-ca2/mongodb-backup || true
-          terraform import kubernetes_secret_v1.backend_env eadesign-ca2/backend-env || true
-          terraform import kubernetes_deployment.mongodb eadesign-ca2/mongodb || true
-          terraform import kubernetes_service.mongodb eadesign-ca2/mongodb || true
-          terraform import kubernetes_cron_job_v1.mongodb_backup eadesign-ca2/mongodb-backup || true
-          terraform import kubernetes_network_policy.mongodb_policy eadesign-ca2/mongodb-allow-backend-only || true
-          terraform import kubernetes_deployment.backend eadesign-ca2/backend || true
-          terraform import kubernetes_service.backend eadesign-ca2/backend || true
-          terraform import kubernetes_network_policy.backend_policy eadesign-ca2/backend-allow-frontend-monitoring-and-ingress || true
-          terraform import kubernetes_network_policy.backend_egress_policy eadesign-ca2/backend-egress-db-and-dns || true
-          terraform import kubernetes_horizontal_pod_autoscaler_v2.backend eadesign-ca2/backend-hpa || true
-          terraform import kubernetes_deployment.frontend eadesign-ca2/frontend || true
-          terraform import kubernetes_service.frontend eadesign-ca2/frontend || true
-          terraform import kubernetes_network_policy.frontend_policy eadesign-ca2/frontend-allow-ingress-and-monitoring || true
-          terraform import kubernetes_network_policy.frontend_egress_policy eadesign-ca2/frontend-egress-backend-and-dns || true
-          terraform import kubernetes_horizontal_pod_autoscaler_v2.frontend eadesign-ca2/frontend-hpa || true
-          terraform import kubernetes_ingress_v1.ca2_ingress eadesign-ca2/ca2-ingress || true
-          terraform apply -auto-approve \
-            -var="backend_image=${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }}" \
-            -var="frontend_image=${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-frontend:${{ env.IMAGE_TAG }}"
+          terraform apply -auto-approve
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ vars.AZURE_RESOURCE_GROUP || 'eadesign-ca2-rg' }}
+          cluster-name: ${{ vars.AKS_CLUSTER_NAME || 'eadesign-ca2-aks' }}
+
+      - name: Render Kubernetes Manifests
+        env:
+          BACKEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }}
+          FRONTEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-frontend:${{ env.IMAGE_TAG }}
+        run: |
+          mkdir -p rendered-k8s
+          cp k8s/*.yaml rendered-k8s/
+          sed -i "s|__BACKEND_IMAGE__|${BACKEND_IMAGE}|g" rendered-k8s/backend.yaml
+          sed -i "s|__FRONTEND_IMAGE__|${FRONTEND_IMAGE}|g" rendered-k8s/frontend.yaml
+
+      - name: Apply Kubernetes Manifests
+        run: |
+          kubectl apply -f rendered-k8s/mongodb.yaml
+          kubectl apply -f rendered-k8s/backend.yaml
+          kubectl apply -f rendered-k8s/frontend.yaml
+          kubectl apply -f rendered-k8s/ops.yaml
+          kubectl apply -f rendered-k8s/network-policies.yaml
+          kubectl apply -f rendered-k8s/ingress.yaml
 
       - name: Verify MongoDB Rollout
         run: |
@@ -318,16 +332,22 @@ jobs:
     needs:
       - deploy
     steps:
-      - name: Set Kubeconfig
-        run: |
-          mkdir -p "$HOME/.kube"
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > "$HOME/.kube/config"
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Set up Helm
         uses: azure/setup-helm@v3
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
+
+      - name: Set AKS Context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ vars.AZURE_RESOURCE_GROUP || 'eadesign-ca2-rg' }}
+          cluster-name: ${{ vars.AKS_CLUSTER_NAME || 'eadesign-ca2-aks' }}
 
       - name: Add Helm Repos
         run: |

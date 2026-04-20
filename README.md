@@ -6,7 +6,8 @@ The system includes:
 
 - A Node.js frontend in `FRONT_END`
 - A Spring Boot backend in `BACK_END`
-- Terraform configuration to provision the application resources in Kubernetes
+- Terraform configuration to provision Azure infrastructure and Kubernetes prerequisites
+- Kubernetes manifests in `k8s` for application deployment
 - A GitHub Actions workflow for build, security checks, deployment, rollback validation, and monitoring bootstrap
 
 ## Architecture
@@ -28,7 +29,7 @@ This is an ingress-based entry point. The frontend service is internal to the cl
 
 ### Network model
 
-The Terraform configuration applies Kubernetes network policies so that:
+The Kubernetes manifests apply network policies so that:
 
 - frontend pods can call backend pods
 - backend pods can call MongoDB
@@ -121,9 +122,19 @@ Terraform configuration:
 - `terraform/variables.tf`
 - `terraform/outputs.tf`
 
-The Terraform setup defines Kubernetes resources for:
+Kubernetes manifests:
 
-- namespace
+- `k8s/mongodb.yaml`
+- `k8s/backend.yaml`
+- `k8s/frontend.yaml`
+- `k8s/ops.yaml`
+- `k8s/network-policies.yaml`
+- `k8s/ingress.yaml`
+
+Terraform now provisions the Azure resource group, AKS cluster, and Kubernetes namespace, while keeping the infrastructure provisioning layer separate from application rollout.
+
+The Kubernetes manifests define the application resources for:
+
 - MongoDB persistent storage
 - MongoDB backup persistent storage
 - MongoDB deployment and service
@@ -134,7 +145,7 @@ The Terraform setup defines Kubernetes resources for:
 - horizontal pod autoscalers
 - network policies
 
-Deployment protections included in Terraform:
+Deployment protections included in the manifests and pipeline:
 
 - rolling update strategy for frontend and backend
 - recreate strategy for MongoDB so the single PVC is not mounted by two pods at once
@@ -161,7 +172,7 @@ It performs:
 - OWASP dependency check
 - Docker image build and push
 - Trivy image scanning
-- Terraform deployment to AKS
+- Terraform provisioning of Azure and AKS followed by Kubernetes manifest deployment
 - rollout verification for MongoDB, backend, and frontend
 - automatic `kubectl rollout undo` if a deployment rollout fails
 - Helm-based installation of Prometheus, Grafana, and Loki
@@ -187,7 +198,7 @@ MongoDB backups are created by a Kubernetes `CronJob` on a daily schedule and st
 
 Application rollback is handled at deployment level:
 
-- Terraform applies the desired manifests
+- Terraform provisions the namespace and the pipeline applies the desired manifests
 - CI waits for rollout completion
 - if MongoDB, backend, or frontend rollout fails, the workflow runs `kubectl rollout undo`
 
