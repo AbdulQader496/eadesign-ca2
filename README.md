@@ -1,43 +1,56 @@
 # EADP CA2
 
-This repository contains a simple full-stack application for the Enterprise Architecture Design CA2 project.
+This repository contains a containerized full-stack application for the Enterprise Architecture Design CA2 project.
 
-The system includes:
+The solution includes:
 
-- A Node.js frontend in `FRONT_END`
-- A Spring Boot backend in `BACK_END`
-- Terraform configuration to provision Azure infrastructure and Kubernetes prerequisites
-- Kubernetes manifests in `k8s` for application deployment
-- A GitHub Actions workflow for build, security checks, deployment, rollback validation, and monitoring bootstrap
+- a Node.js frontend in `FRONT_END`
+- a Spring Boot backend in `BACK_END`
+- a MongoDB data store deployed in Kubernetes
+- Terraform configuration in `terraform` for Azure resource provisioning
+- Kubernetes manifests in `k8s` for application deployment and operations
+- GitHub Actions workflows for infrastructure provisioning, application delivery, and load testing
 
 ## Architecture
 
-The application is split into three runtime components:
+The application is deployed as three runtime components inside AKS:
 
-- Frontend service exposed on port `22137` inside the container
-- Backend service exposed on port `8080`
-- MongoDB exposed on port `27017` inside the cluster
+- `frontend`: Node.js web application
+- `backend`: Spring Boot API
+- `mongodb`: MongoDB database
 
-The backend uses MongoDB and reads its connection settings from environment variables or fallback values in `BACK_END/src/main/resources/application.properties`.
+Application traffic flows as follows:
 
-Traffic routing is handled through Kubernetes ingress:
+- external traffic enters through `ingress-nginx`
+- the Kubernetes `Ingress` resource in `k8s/ingress.yaml` routes browser traffic to `frontend`
+- frontend requests backend data through the internal Kubernetes service `backend`
+- backend connects to MongoDB through the internal Kubernetes service `mongodb`
 
-- `/api/...` routes to the backend service
-- all other paths route to the frontend service
+Service-to-service communication stays inside the cluster. Only the ingress controller is exposed publicly.
 
-This is an ingress-based entry point. The frontend service is internal to the cluster and is not exposed with a dedicated external `LoadBalancer`.
+### Data Layer
 
-### Network model
+MongoDB is used as the application data layer. The backend reads database settings from environment variables supplied through the Kubernetes secret defined in `k8s/backend.yaml`.
 
-The Kubernetes manifests apply network policies so that:
+The backend requires:
 
-- frontend pods can call backend pods
-- backend pods can call MongoDB
-- ingress controller pods can still reach frontend and backend
-- Prometheus can still scrape frontend and backend metrics
-- frontend and backend retain DNS egress so service discovery keeps working
+- `DATABASE_URL`
+- `DATABASE_NAME`
+- `DATABASE_COLLECTION`
 
-This keeps the app reachable while enforcing the intended service-to-service flow.
+MongoDB is deployed as a Kubernetes workload and is reachable only from the backend according to the network policy configuration.
+
+### Network Model
+
+The manifests in `k8s/network-policies.yaml` restrict communication so that:
+
+- frontend pods can reach backend pods
+- backend pods can reach MongoDB
+- ingress controller pods can reach frontend and backend
+- Prometheus can scrape application metrics
+- frontend and backend retain DNS access for service discovery
+
+This keeps the application reachable while enforcing the intended service boundaries.
 
 ## Backend
 
@@ -49,7 +62,7 @@ Technology:
 - Spring Boot 3
 - MongoDB Java driver
 
-Available endpoints from the current controller:
+Available application endpoints:
 
 - `GET /`
 - `GET /health`
@@ -62,30 +75,17 @@ Operational endpoints:
 - `GET /actuator/health`
 - `GET /actuator/prometheus`
 
-### Run backend locally
-
-Requirements:
-
-- Java 17
-- Maven
-
-From `BACK_END`:
+Run locally from `BACK_END`:
 
 ```bash
 mvn spring-boot:run
 ```
 
-Default backend URL:
+Default local URL:
 
 ```text
 http://localhost:8080
 ```
-
-Backend database settings can be overridden with:
-
-- `DATABASE_URL`
-- `DATABASE_NAME`
-- `DATABASE_COLLECTION`
 
 ## Frontend
 
@@ -95,14 +95,14 @@ Technology:
 
 - Node.js
 
-From `FRONT_END`:
+Run locally from `FRONT_END`:
 
 ```bash
 npm install
 npm start
 ```
 
-Default frontend URL:
+Default local URL:
 
 ```text
 http://localhost:22137
@@ -114,13 +114,14 @@ Operational endpoint:
 
 - `GET /metrics`
 
-## Deployment Files
+## Infrastructure And Deployment Files
 
 Terraform configuration:
 
 - `terraform/main.tf`
 - `terraform/variables.tf`
 - `terraform/outputs.tf`
+- `terraform/imports.tf`
 
 Kubernetes manifests:
 
@@ -131,81 +132,149 @@ Kubernetes manifests:
 - `k8s/network-policies.yaml`
 - `k8s/ingress.yaml`
 
-Terraform now provisions the Azure resource group, AKS cluster, and Kubernetes namespace, while keeping the infrastructure provisioning layer separate from application rollout.
+Terraform is responsible for long-lived Azure infrastructure:
 
-The Kubernetes manifests define the application resources for:
+- Azure resource group
+- AKS cluster
 
-- MongoDB persistent storage
-- MongoDB backup persistent storage
-- MongoDB deployment and service
-- MongoDB backup `CronJob`
-- backend deployment and service
-- frontend deployment and service
-- ingress
-- horizontal pod autoscalers
-- network policies
+Application deployment is handled separately through Kubernetes manifests applied by the application delivery workflow.
 
-Deployment protections included in the manifests and pipeline:
+## CI/CD Workflows
 
-- rolling update strategy for frontend and backend
-- recreate strategy for MongoDB so the single PVC is not mounted by two pods at once
-- revision history retention to support deployment rollback
-- daily MongoDB backups with timestamped folders
-- cleanup of old backup folders to avoid filling the backup volume
+GitHub Actions workflows:
 
-## CI/CD
-
-GitHub Actions workflow:
-
+- `.github/workflows/infra.yaml`
 - `.github/workflows/ci-cd.yaml`
 - `.github/workflows/load-test.yaml`
 
-The current workflow is triggered manually with `workflow_dispatch`.
+### Infrastructure Provisioning Workflow
 
-It performs:
+Workflow: `.github/workflows/infra.yaml`
 
+Purpose:
+
+- provision or reconcile long-lived platform resources
+- adopt existing Azure resources into Terraform state through generated import blocks
+- install shared ingress infrastructure
+
+Main tasks:
+
+- Azure login
+- Terraform init and apply
+- import existing resource group and AKS cluster into Terraform state when they already exist
+- set AKS context
+- install `ingress-nginx` with Helm
+- verify the ingress controller rollout
+
+This workflow is intended for infrastructure changes only and is triggered manually with `workflow_dispatch`.
+
+### Application Delivery Workflow
+
+Workflow: `.github/workflows/ci-cd.yaml`
+
+Purpose:
+
+- validate code
+- build and publish images
+- deploy application workloads to an already provisioned AKS cluster
+- install and update application observability components
+
+Triggers:
+
+- push to `main`
+- manual `workflow_dispatch`
+
+Main tasks:
+
+- secret scanning with Gitleaks
 - backend tests
 - frontend tests
 - frontend `npm audit` reporting
 - SonarCloud analysis
 - backend artifact build
 - OWASP dependency check
-- Docker image build and push
+- multi-architecture Docker image build and push for `linux/amd64` and `linux/arm64`
 - Trivy image scanning
-- Terraform provisioning of Azure and AKS followed by Kubernetes manifest deployment
+- AKS context setup
+- Kubernetes manifest rendering and apply
 - rollout verification for MongoDB, backend, and frontend
-- automatic `kubectl rollout undo` if a deployment rollout fails
+- deployment rollback on failed rollout when revision history exists
 - Helm-based installation of Prometheus, Grafana, and Loki
 - PodMonitor creation for backend and frontend metrics scraping
 
-The separate load test workflow is triggered manually and runs a `k6` script from `load-tests/website.js` against the supplied target URL.
+### Load Testing Workflow
 
-## Monitoring
+Workflow: `.github/workflows/load-test.yaml`
 
-Application monitoring is designed for `kube-prometheus-stack`:
+This workflow runs a `k6` load test using `load-tests/website.js` against a supplied target URL.
 
-- backend metrics are exposed at `/actuator/prometheus`
-- frontend metrics are exposed at `/metrics`
-- the monitoring workflow installs Prometheus, Grafana, Loki, and promtail
-- Grafana datasource provisioning is normalized so Prometheus is the only default datasource and Loki is added as a non-default datasource
-- PodMonitors are applied so Prometheus can discover both application pods
+## Deployment Strategy
 
-Grafana and Prometheus can be accessed with `kubectl port-forward` after the monitoring job completes.
+The application uses Kubernetes rolling updates for frontend and backend deployments.
 
-## Backup And Rollback
+Deployment protections in the manifests and workflows include:
 
-MongoDB backups are created by a Kubernetes `CronJob` on a daily schedule and stored on a dedicated backup PVC.
+- rolling updates for frontend and backend
+- rollout status verification after deployment
+- deployment rollback with `kubectl rollout undo` when a newer revision fails
+- revision history retention for Kubernetes deployments
 
-Application rollback is handled at deployment level:
+MongoDB is deployed as a single service inside the cluster and backed by persistent storage.
 
-- Terraform provisions the namespace and the pipeline applies the desired manifests
-- CI waits for rollout completion
-- if MongoDB, backend, or frontend rollout fails, the workflow runs `kubectl rollout undo`
+## Scaling
 
-This rollback flow protects Kubernetes Deployments. It does not fully roll back every Terraform-managed infrastructure change.
+Scaling is handled at two levels:
+
+- infrastructure level: AKS node pool sizing is defined through Terraform
+- application level: frontend and backend HPA resources are defined in `k8s/ops.yaml`
+
+This allows horizontal scaling of application workloads while keeping cluster capacity under infrastructure control.
+
+## Backup And Recovery
+
+MongoDB backups are created by a Kubernetes `CronJob` defined in `k8s/ops.yaml`.
+
+The backup strategy includes:
+
+- daily scheduled backups
+- timestamped backup directories
+- backup retention cleanup for older folders
+- dedicated persistent volume claim for backup storage
+
+Application rollback is handled at deployment level through Kubernetes rollout history.
+
+## Monitoring And Logging
+
+The monitoring stack uses:
+
+- Prometheus
+- Grafana
+- Loki
+- Promtail
+
+Application metrics are exposed at:
+
+- backend: `/actuator/prometheus`
+- frontend: `/metrics`
+
+Prometheus discovers application metrics through PodMonitors. Grafana is configured with Prometheus and Loki datasources. Logs are collected from container output and stored in Loki for centralized access through Grafana.
+
+## Security
+
+Security controls in the solution include:
+
+- secret scanning with Gitleaks
+- dependency scanning with OWASP Dependency Check
+- container image scanning with Trivy
+- code quality and security analysis with SonarCloud
+- non-root containers for frontend and backend
+- read-only root filesystems for application containers
+- Kubernetes network policies to restrict service communication
+- backend database configuration supplied through Kubernetes secrets
 
 ## Notes
 
-- Frontend autoscaling and backend autoscaling are handled with Kubernetes HPA resources.
-- `terraform import ... || true` commands are intentionally retained in the workflow for this repository's deployment process.
+- The sample recipes defined in `Persistence.java` are not automatically inserted unless backend seeding is explicitly triggered.
+- The application delivery workflow assumes the AKS cluster already exists.
+- The ingress public IP is assigned by the `ingress-nginx` LoadBalancer service rather than by the application services themselves.
 - Local frontend dependencies are ignored through `.gitignore` with `FRONT_END/node_modules/`.
