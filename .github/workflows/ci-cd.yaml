@@ -272,6 +272,10 @@ jobs:
           TF_VAR_aks_kubernetes_version: ${{ vars.AKS_KUBERNETES_VERSION || '' }}
         run: |
           terraform init
+          if az group exists --name "$TF_VAR_resource_group_name" | grep -q true; then
+            echo "Importing existing resource group into Terraform state..."
+            terraform import -no-color azurerm_resource_group.ca2 "/subscriptions/$TF_VAR_azure_subscription_id/resourceGroups/$TF_VAR_resource_group_name" || true
+          fi
           terraform apply -auto-approve
 
       - name: Set AKS Context
