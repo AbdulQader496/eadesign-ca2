@@ -198,13 +198,29 @@ jobs:
       - name: Login to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
 
-      - name: Build Frontend Image
-        working-directory: FRONT_END
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-frontend:${{ env.IMAGE_TAG }} .
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-      - name: Build Backend Image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build And Push Frontend Image
+        working-directory: FRONT_END
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-frontend:${{ env.IMAGE_TAG }} \
+            --push \
+            .
+
+      - name: Build And Push Backend Image
         working-directory: BACK_END
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }} .
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }} \
+            --push \
+            .
 
       - name: Install Trivy
         run: |
@@ -230,12 +246,6 @@ jobs:
           path: |
             trivy-backend-report.txt
             trivy-frontend-report.txt
-            
-      - name: Push Frontend Image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-frontend:${{ env.IMAGE_TAG }}
-
-      - name: Push Backend Image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/eadesign-ca2-backend:${{ env.IMAGE_TAG }}
  
   deploy:
     name: Deploy To AKS
